@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>웹 카메라 보정</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto max-w-md p-4">
+        <div class="bg-white shadow-lg rounded-lg p-4">
+            <h1 class="text-2xl font-bold mb-4 text-center">웹 카메라 보정</h1>
+            
+            <video id="videoElement" autoplay playsinline class="w-full rounded-lg bg-black mb-4"></video>
+            <canvas id="photoCanvas" class="hidden"></canvas>
+
+            <div class="mb-4">
+                <h3 class="text-center mb-2">립 메이크업</h3>
+                <div id="lipColorButtons" class="flex justify-center space-x-2">
+                    <button onclick="selectLipColor('#FF0000')" class="w-8 h-8 rounded-full" style="background-color: #FF0000;"></button>
+                    <button onclick="selectLipColor('#DB4437')" class="w-8 h-8 rounded-full" style="background-color: #DB4437;"></button>
+                    <button onclick="selectLipColor('#FF69B4')" class="w-8 h-8 rounded-full" style="background-color: #FF69B4;"></button>
+                    <button onclick="selectLipColor('#8B008B')" class="w-8 h-8 rounded-full" style="background-color: #8B008B;"></button>
+                    <button onclick="selectLipColor('#000000')" class="w-8 h-8 rounded-full" style="background-color: #000000;"></button>
+                    <button onclick="selectLipColor('')" class="px-2 bg-gray-200 rounded">지우기</button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-center mb-2">흐리게</h3>
+                <input type="range" id="blurSlider" min="0" max="10" value="0" class="w-full">
+            </div>
+
+            <div class="flex justify-center space-x-2 mb-4">
+                <button onclick="applyFilter('없음')" class="px-3 py-1 rounded bg-blue-500 text-white">없음</button>
+                <button onclick="applyFilter('흑백')" class="px-3 py-1 rounded bg-gray-200 text-gray-700">흑백</button>
+                <button onclick="applyFilter('세피아')" class="px-3 py-1 rounded bg-gray-200 text-gray-700">세피아</button>
+                <button onclick="applyFilter('밝게')" class="px-3 py-1 rounded bg-gray-200 text-gray-700">밝게</button>
+            </div>
+
+            <div class="flex justify-center space-x-4">
+                <button onclick="takePhoto()" class="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600">
+                    사진 찍기
+                </button>
+                <button onclick="downloadPhoto()" id="downloadButton" class="hidden bg-green-500 text-white p-2 rounded-full hover:bg-green-600">
+                    다운로드
+                </button>
+            </div>
+
+            <div id="photoResult" class="mt-4 hidden">
+                <h2 class="text-xl font-semibold mb-2 text-center">촬영된 사진</h2>
+                <img id="capturedPhoto" class="mx-auto max-w-full rounded-lg shadow-md">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const photoCanvas = document.getElementById('photoCanvas');
+        const capturedPhoto = document.getElementById('capturedPhoto');
+        const downloadButton = document.getElementById('downloadButton');
+        const photoResult = document.getElementById('photoResult');
+        const blurSlider = document.getElementById('blurSlider');
+
+        let currentFilter = '없음';
+        let currentLipColor = '';
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 } 
+                    } 
+                });
+                videoElement.srcObject = stream;
+            } catch (error) {
+                console.error("카메라 접근 오류:", error);
+                alert("카메라를 사용할 수 없습니다.");
+            }
+        }
+
+        function selectLipColor(color) {
+            currentLipColor = color;
+        }
+
+        function applyFilter(filterName) {
+            currentFilter = filterName;
+            // 필터 버튼 UI 업데이트
+            document.querySelectorAll('[onclick^="applyFilter"]').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            event.target.classList.remove('bg-gray-200', 'text-gray-700');
+            event.target.classList.add('bg-blue-500', 'text-white');
+        }
+
+        function takePhoto() {
+            const width = 414;
+            const height = width / (16/9);
+
+            photoCanvas.width = width;
+            photoCanvas.height = height;
+
+            const context = photoCanvas.getContext('2d');
+            context.filter = getFilterStyle() + ` blur(${blurSlider.value}px)`;
+            context.drawImage(videoElement, 0, 0, width, height);
+
+            if (currentLipColor) {
+                context.fillStyle = currentLipColor;
+                context.globalAlpha = 0.5;
+                context.fillRect(width * 0.3, height * 0.6, width * 0.4, height * 0.2);
+                context.globalAlpha = 1;
+            }
+
+            const imageDataUrl = photoCanvas.toDataURL('image/jpeg');
+            capturedPhoto.src = imageDataUrl;
+            capturedPhoto.style.filter = getFilterStyle() + ` blur(${blurSlider.value}px)`;
+            
+            photoResult.classList.remove('hidden');
+            downloadButton.classList.remove('hidden');
+        }
+
+        function getFilterStyle() {
+            const filters = {
+                '없음': '',
+                '흑백': 'grayscale(100%)',
+                '세피아': 'sepia(100%)',
+                '밝게': 'brightness(150%)'
+            };
+            return filters[currentFilter] || '';
+        }
+
+        function downloadPhoto() {
+            const link = document.createElement('a');
+            link.href = capturedPhoto.src;
+            link.download = `photo_${new Date().toISOString()}.jpg`;
+            link.click();
+        }
+
+        startCamera();
+    </script>
+</body>
+</html>
